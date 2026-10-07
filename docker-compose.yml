@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: donkey-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: donkey
+    ports:
+      - "5432:5432"
+    volumes:
+      - donkey_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d donkey"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  donkey-cut:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: donkey-cut-editor
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Donkey:/app
+    working_dir: /app/site
+    environment:
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - NODE_ENV=development
+      - DONKEY_DEV_AUTH_BYPASS=1
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/donkey?sslmode=disable
+      - DIRECT_URL=postgresql://postgres:postgrespassword@postgres:5432/donkey?sslmode=disable
+      - BETTER_AUTH_SECRET=dev-secret-key-12345678901234567890
+    command: sh -c "npx prisma db push --accept-data-loss && npm run dev -- -H 0.0.0.0"
+
+volumes:
+  donkey_pgdata:
